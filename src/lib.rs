@@ -215,7 +215,7 @@ impl TryFrom<Vec<u8>> for BISON{
         let mut wrapper = VecWrapper::from(value);
         let mut key;
         while let Ok(key_length) = wrapper.read_u8(){
-            key = String::from_utf8(wrapper.read_vec(key_length as usize)?)?;
+            key = String::from_utf8(wrapper.read_vec(usize::from(key_length))?)?;
             map.insert(key, process_value(&mut wrapper)?);
         }
         Ok(Self(map))
@@ -229,8 +229,8 @@ impl TryFrom<BISON> for Vec<u8>{
         fn process_value(value: BISONType) -> GlobalResult<Vec<u8>>{
             let mut bytes = Vec::new();
             fn write_vec(bytes: &mut Vec<u8>, to_write: Vec<u8>){
-                if bytes.len() <= 251{
-                    bytes.push(to_write.len() as u8);
+                if let Ok(len) = u8::try_from(to_write.len()) && (len <= 251){
+                    bytes.push(len);
                 }
                 else if let Ok(len) = u16::try_from(to_write.len()){
                     bytes.push(252);
