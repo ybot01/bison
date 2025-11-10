@@ -42,10 +42,6 @@ impl VecWrapper{
         self.read_bytes().map(u128::from_be_bytes)
     }
 
-    pub fn read_i8(&mut self) -> GlobalResult<i8>{
-        self.read_bytes().map(i8::from_be_bytes)
-    }
-
     pub fn read_i16(&mut self) -> GlobalResult<i16>{
         self.read_bytes().map(i16::from_be_bytes)
     }

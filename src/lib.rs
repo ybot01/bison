@@ -22,7 +22,7 @@ impl Display for BISON{
     }
 }
 
-#[derive(Clone, PartialEq, PartialOrd, Debug)]
+#[derive(Clone, PartialEq, PartialOrd, Default, Debug)]
 pub enum BISONType {
     Map(BISON),
     Array(Vec<BISONType>),
@@ -31,6 +31,7 @@ pub enum BISONType {
     Float(f64),
     ByteArray(Vec<u8>),
     Boolean(bool),
+    #[default]
     Null
 }
 
