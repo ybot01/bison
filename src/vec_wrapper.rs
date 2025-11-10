@@ -42,6 +42,26 @@ impl VecWrapper{
         self.read_bytes().map(u128::from_be_bytes)
     }
 
+    pub fn read_i8(&mut self) -> GlobalResult<i8>{
+        self.read_bytes().map(i8::from_be_bytes)
+    }
+
+    pub fn read_i16(&mut self) -> GlobalResult<i16>{
+        self.read_bytes().map(i16::from_be_bytes)
+    }
+
+    pub fn read_i32(&mut self) -> GlobalResult<i32>{
+        self.read_bytes().map(i32::from_be_bytes)
+    }
+
+    pub fn read_i64(&mut self) -> GlobalResult<i64>{
+        self.read_bytes().map(i64::from_be_bytes)
+    }
+
+    pub fn read_f64(&mut self) -> GlobalResult<f64>{
+        self.read_bytes().map(f64::from_be_bytes)
+    }
+
     pub fn read_bytes<const N: usize>(&mut self) -> GlobalResult<[u8;N]>{
         Ok(<[u8;N]>::try_from(self.bytes.get(self.index..(self.index+N)).ok_or(GlobalError::RETURNED_NONE)?)
             .inspect(|_| self.index += N )?)

@@ -27,7 +27,8 @@ pub enum BISONType {
     Map(BISON),
     Array(Vec<BISONType>),
     String(String),
-    Number(String),
+    Integer(i64),
+    Float(f64),
     ByteArray(Vec<u8>),
     Boolean(bool),
     Null
@@ -36,13 +37,14 @@ pub enum BISONType {
 impl Display for BISONType{
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self{
-            BISONType::Map(value) => write!(f, "{}", value.to_string()),
-            BISONType::Array(value) => write!(f, "[{}]", value.iter().map(BISONType::to_string).collect::<Vec<String>>().join(", ")),
-            BISONType::String(value) => write!(f, "\"{}\"", value),
-            BISONType::Number(value) => write!(f, "{}", value),
-            BISONType::ByteArray(value) => write!(f, "{:?}", value),
-            BISONType::Boolean(value) => write!(f, "{}", value),
-            BISONType::Null => write!(f, "null")
+            Self::Map(value) => write!(f, "{}", value.to_string()),
+            Self::Array(value) => write!(f, "[{}]", value.iter().map(BISONType::to_string).collect::<Vec<String>>().join(", ")),
+            Self::String(value) => write!(f, "\"{}\"", value),
+            Self::Integer(value) => write!(f, "{}", value),
+            Self::Float(value) => write!(f, "{}", value),
+            Self::ByteArray(value) => write!(f, "{:?}", value),
+            Self::Boolean(value) => write!(f, "{}", value),
+            Self::Null => write!(f, "null")
         }
     }
 }
@@ -64,59 +66,84 @@ impl Into<BISONType> for &str{
 }
 
 impl Into<BISONType> for u8{
-    fn into(self) -> BISONType { BISONType::Number(self.to_string())}
+    fn into(self) -> BISONType { BISONType::Integer(i64::from(self))}
 }
 
 impl Into<BISONType> for u16{
-    fn into(self) -> BISONType { BISONType::Number(self.to_string())}
+    fn into(self) -> BISONType { BISONType::Integer(i64::from(self))}
 }
 
 impl Into<BISONType> for u32{
-    fn into(self) -> BISONType { BISONType::Number(self.to_string())}
+    fn into(self) -> BISONType { BISONType::Integer(i64::from(self))}
 }
 
-impl Into<BISONType> for u64{
-    fn into(self) -> BISONType { BISONType::Number(self.to_string())}
+impl TryInto<BISONType> for u64{
+
+    type Error = GlobalError;
+
+    fn try_into(self) -> Result<BISONType, Self::Error> {
+        Ok(BISONType::Integer(i64::try_from(self)?))
+    }
 }
 
-impl Into<BISONType> for u128{
-    fn into(self) -> BISONType { BISONType::Number(self.to_string())}
+impl TryInto<BISONType> for u128{
+
+    type Error = GlobalError;
+
+    fn try_into(self) -> Result<BISONType, Self::Error> {
+        Ok(BISONType::Integer(i64::try_from(self)?))
+    }
 }
 
-impl Into<BISONType> for usize{
-    fn into(self) -> BISONType { BISONType::Number(self.to_string())}
+impl TryInto<BISONType> for usize{
+
+    type Error = GlobalError;
+
+    fn try_into(self) -> Result<BISONType, Self::Error> {
+        Ok(BISONType::Integer(i64::try_from(self)?))
+    }
 }
 
 impl Into<BISONType> for i8{
-    fn into(self) -> BISONType { BISONType::Number(self.to_string())}
+    fn into(self) -> BISONType { BISONType::Integer(i64::from(self))}
 }
 
 impl Into<BISONType> for i16{
-    fn into(self) -> BISONType { BISONType::Number(self.to_string())}
+    fn into(self) -> BISONType { BISONType::Integer(i64::from(self))}
 }
 
 impl Into<BISONType> for i32{
-    fn into(self) -> BISONType { BISONType::Number(self.to_string())}
+    fn into(self) -> BISONType { BISONType::Integer(i64::from(self))}
 }
 
 impl Into<BISONType> for i64{
-    fn into(self) -> BISONType { BISONType::Number(self.to_string())}
+    fn into(self) -> BISONType { BISONType::Integer(self)}
 }
 
-impl Into<BISONType> for i128{
-    fn into(self) -> BISONType { BISONType::Number(self.to_string())}
+impl TryInto<BISONType> for i128{
+
+    type Error = GlobalError;
+
+    fn try_into(self) -> Result<BISONType, Self::Error> {
+        Ok(BISONType::Integer(i64::try_from(self)?))
+    }
 }
 
-impl Into<BISONType> for isize{
-    fn into(self) -> BISONType { BISONType::Number(self.to_string())}
+impl TryInto<BISONType> for isize{
+
+    type Error = GlobalError;
+
+    fn try_into(self) -> Result<BISONType, Self::Error> {
+        Ok(BISONType::Integer(i64::try_from(self)?))
+    }
 }
 
 impl Into<BISONType> for f32{
-    fn into(self) -> BISONType { BISONType::Number(self.to_string())}
+    fn into(self) -> BISONType { BISONType::Float(f64::from(self))}
 }
 
 impl Into<BISONType> for f64{
-    fn into(self) -> BISONType { BISONType::Number(self.to_string())}
+    fn into(self) -> BISONType { BISONType::Float(self)}
 }
 
 impl Into<BISONType> for Vec<u8>{
@@ -130,11 +157,12 @@ impl Into<BISONType> for bool{
 impl BISON{
     const NULL: u8 = 0;
     const BOOLEAN: u8 = 1;
-    const NUMBER: u8 = 2;
-    const BYTE_ARRAY: u8 = 3;
-    const STRING: u8 = 4;
-    const ARRAY: u8 = 5;
-    const MAP: u8 = 6;
+    const INTEGER: u8 = 3;
+    const FLOAT: u8 = 4;
+    const BYTE_ARRAY: u8 = 5;
+    const STRING: u8 = 6;
+    const ARRAY: u8 = 7;
+    const MAP: u8 = 8;
 
     pub const fn new() -> Self {Self(BTreeMap::new())}
 
@@ -196,7 +224,18 @@ impl TryFrom<Vec<u8>> for BISON{
             Ok(match wrapper.read_u8()?{
                 BISON::NULL => BISONType::Null,
                 BISON::BOOLEAN => BISONType::Boolean(wrapper.read_bool()?),
-                BISON::NUMBER => BISONType::Number(String::from_utf8(get_vec(&mut wrapper)?)?),
+                BISON::INTEGER => {
+                    BISONType::Integer(
+                        match wrapper.read_u8()?{
+                            1 => i64::from(wrapper.read_u8()?.cast_signed()),
+                            2 => i64::from(wrapper.read_i16()?),
+                            4 => i64::from(wrapper.read_i32()?),
+                            8 => wrapper.read_i64()?,
+                            _ => return Err(GlobalError::Custom("invalid integer byte length"))
+                        }
+                    )
+                },
+                BISON::FLOAT => BISONType::Float(wrapper.read_f64()?),
                 BISON::BYTE_ARRAY => BISONType::ByteArray(get_vec(&mut wrapper)?),
                 BISON::STRING => BISONType::String(String::from_utf8(get_vec(&mut wrapper)?)?),
                 BISON::ARRAY => {
@@ -228,7 +267,7 @@ impl TryFrom<BISON> for Vec<u8>{
     fn try_from(value: BISON) -> Result<Self, Self::Error> {
         fn process_value(value: BISONType) -> GlobalResult<Vec<u8>>{
             let mut bytes = Vec::new();
-            fn write_vec(bytes: &mut Vec<u8>, to_write: Vec<u8>){
+            fn write_vec(bytes: &mut Vec<u8>, to_write: &[u8]){
                 if let Ok(len) = u8::try_from(to_write.len()) && (len <= 251){
                     bytes.push(len);
                 }
@@ -253,7 +292,7 @@ impl TryFrom<BISON> for Vec<u8>{
             match value{
                 BISONType::Map(value) => {
                     bytes.push(BISON::MAP);
-                    write_vec(&mut bytes, Vec::try_from(value)?);
+                    write_vec(&mut bytes, &Vec::try_from(value)?);
                 }
                 BISONType::Array(value) => {
                     bytes.push(BISON::ARRAY);
@@ -261,19 +300,38 @@ impl TryFrom<BISON> for Vec<u8>{
                     for single_value in value{
                         array.extend_from_slice(&process_value(single_value)?);
                     }
-                    write_vec(&mut bytes, array);
+                    write_vec(&mut bytes, &array);
                 }
                 BISONType::String(value) => {
                     bytes.push(BISON::STRING);
-                    write_vec(&mut bytes, value.as_bytes().to_vec());
+                    write_vec(&mut bytes, value.as_bytes());
                 }
-                BISONType::Number(value) => {
-                    bytes.push(BISON::NUMBER);
-                    write_vec(&mut bytes, value.as_bytes().to_vec());
+                BISONType::Integer(value) => {
+                    bytes.push(BISON::INTEGER);
+                    if let Ok(result) = i8::try_from(value){
+                        bytes.push(1);
+                        bytes.push(result.cast_unsigned());
+                    }
+                    else if let Ok(result) = i16::try_from(value){
+                        bytes.push(2);
+                        bytes.extend_from_slice(&result.to_be_bytes());
+                    }
+                    else if let Ok(result) = i32::try_from(value){
+                        bytes.push(4);
+                        bytes.extend_from_slice(&result.to_be_bytes());
+                    }
+                    else{
+                        bytes.push(8);
+                        bytes.extend_from_slice(&value.to_be_bytes());
+                    }
+                }
+                BISONType::Float(value) => {
+                    bytes.push(BISON::FLOAT);
+                    bytes.extend_from_slice(&value.to_be_bytes());
                 }
                 BISONType::ByteArray(value) => {
                     bytes.push(BISON::BYTE_ARRAY);
-                    write_vec(&mut bytes, value);
+                    write_vec(&mut bytes, &value);
                 }
                 BISONType::Boolean(value) => {
                     bytes.push(BISON::BOOLEAN);
