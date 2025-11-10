@@ -5,8 +5,6 @@ mod vec_wrapper;
 
 extern crate alloc;
 
-use alloc::collections::BTreeMap;
-use alloc::collections::btree_map::Keys;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt::{Display, Formatter};
@@ -14,7 +12,7 @@ use crate::global_error::{GlobalError, GlobalResult};
 use crate::vec_wrapper::VecWrapper;
 
 #[derive(Clone, PartialEq, PartialOrd, Default, Debug)]
-pub struct BISON(BTreeMap<String, BISONType>);
+pub struct BISON(Vec<(String, BISONType)>);
 
 impl Display for BISON{
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
@@ -165,20 +163,28 @@ impl BISON{
     const ARRAY: u8 = 7;
     const MAP: u8 = 8;
 
-    pub const fn new() -> Self {Self(BTreeMap::new())}
+    pub const fn new() -> Self {Self(Vec::new())}
 
-    pub fn keys(&self) -> Keys<'_, String, BISONType> {self.0.keys()}
-
-    pub fn get(&self, key: impl Into<String>) -> Option<BISONType>{
-        self.0.get(&key.into()).map(|x| x.clone())
+    pub fn keys(&self) -> Vec<String> {
+        self.0.iter().map(|x| x.0.clone()).collect()
     }
 
-    pub fn insert(&mut self, key: impl Into<String>, value: impl Into<BISONType>){
-        self.0.insert(key.into(), value.into());
+    pub fn get<T: Into<String> + Clone>(&self, key: &T) -> Option<&BISONType>{
+        self.0.iter().find(|x| x.0 == key.clone().into()).map(|x| &x.1)
     }
 
-    pub fn delete(&mut self, key: impl Into<String>){
-        self.0.remove(&key.into());
+    pub fn contains_key<T: Into<String> + Clone>(&self, key: &T) -> bool{
+        self.0.iter().any(|x| x.0 == key.clone().into())
+    }
+
+    pub fn insert<T: Into<String> + Clone>(&mut self, key: T, value: impl Into<BISONType>){
+        if !self.contains_key(&key){
+            self.0.push((key.into(), value.into()));
+        }
+    }
+
+    pub fn delete<T: Into<String> + Clone>(&mut self, key: &T){
+        self.0.retain(|x| x.0 != key.clone().into())
     }
 
     fn to_string_internal(&self, indent_level: usize) -> String{
@@ -210,18 +216,19 @@ impl TryFrom<Vec<u8>> for BISON{
     type Error = GlobalError;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        fn get_vec(wrapper: &mut VecWrapper) -> GlobalResult<Vec<u8>>{
+            let length_u8 = wrapper.read_u8()?;
+            let length = match length_u8{
+                252 => usize::from(wrapper.read_u16()?),
+                253 => usize::try_from(wrapper.read_u32()?)?,
+                254 => usize::try_from(wrapper.read_u64()?)?,
+                u8::MAX => usize::try_from(wrapper.read_u128()?)?,
+                _ => usize::from(length_u8)
+            };
+            wrapper.read_vec(length)
+        }
+
         fn process_value(mut wrapper: &mut VecWrapper) -> GlobalResult<BISONType>{
-            fn get_vec(wrapper: &mut VecWrapper) -> GlobalResult<Vec<u8>>{
-                let length_u8 = wrapper.read_u8()?;
-                let length = match length_u8{
-                    252 => usize::from(wrapper.read_u16()?),
-                    253 => usize::try_from(wrapper.read_u32()?)?,
-                    254 => usize::try_from(wrapper.read_u64()?)?,
-                    u8::MAX => usize::try_from(wrapper.read_u128()?)?,
-                    _ => usize::from(length_u8)
-                };
-                wrapper.read_vec(length)
-            }
             Ok(match wrapper.read_u8()?{
                 BISON::NULL => BISONType::Null,
                 BISON::BOOLEAN => BISONType::Boolean(wrapper.read_bool()?),
@@ -251,61 +258,62 @@ impl TryFrom<Vec<u8>> for BISON{
                 _ => return Err(GlobalError::Custom("invalid value type"))
             })
         }
-        let mut map = BTreeMap::new();
+        let mut map = Self::new();
         let mut wrapper = VecWrapper::from(value);
-        let mut key;
-        while let Ok(key_length) = wrapper.read_u8(){
-            key = String::from_utf8(wrapper.read_vec(usize::from(key_length))?)?;
-            map.insert(key, process_value(&mut wrapper)?);
+        while let Ok(key) = get_vec(&mut wrapper){
+            map.insert(&String::from_utf8(key)?, process_value(&mut wrapper)?);
         }
-        Ok(Self(map))
+        Ok(map)
     }
 }
 
-impl TryFrom<BISON> for Vec<u8>{
-    type Error = GlobalError;
-
-    fn try_from(value: BISON) -> Result<Self, Self::Error> {
-        fn process_value(value: BISONType) -> GlobalResult<Vec<u8>>{
+impl From<BISON> for Vec<u8>{
+    fn from(value: BISON) -> Self {
+        fn get_vec(to_write: &[u8]) -> Vec<u8>{
             let mut bytes = Vec::new();
-            fn write_vec(bytes: &mut Vec<u8>, to_write: &[u8]){
-                if let Ok(len) = u8::try_from(to_write.len()) && (len <= 251){
-                    bytes.push(len);
-                }
-                else if let Ok(len) = u16::try_from(to_write.len()){
-                    bytes.push(252);
-                    bytes.extend_from_slice(&len.to_be_bytes());
-                }
-                else if let Ok(len) = u32::try_from(to_write.len()){
-                    bytes.push(253);
-                    bytes.extend_from_slice(&len.to_be_bytes());
-                }
-                else if let Ok(len) = u64::try_from(to_write.len()){
-                    bytes.push(254);
-                    bytes.extend_from_slice(&len.to_be_bytes());
-                }
-                else if let Ok(len) = u128::try_from(to_write.len()){
-                    bytes.push(u8::MAX);
-                    bytes.extend_from_slice(&len.to_be_bytes());
-                }
-                bytes.extend_from_slice(&to_write);
+
+            if let Ok(len) = u8::try_from(to_write.len()) && (len <= 251){
+                bytes.push(len);
             }
+            else if let Ok(len) = u16::try_from(to_write.len()){
+                bytes.push(252);
+                bytes.extend_from_slice(&len.to_be_bytes());
+            }
+            else if let Ok(len) = u32::try_from(to_write.len()){
+                bytes.push(253);
+                bytes.extend_from_slice(&len.to_be_bytes());
+            }
+            else if let Ok(len) = u64::try_from(to_write.len()){
+                bytes.push(254);
+                bytes.extend_from_slice(&len.to_be_bytes());
+            }
+            else if let Ok(len) = u128::try_from(to_write.len()){
+                bytes.push(u8::MAX);
+                bytes.extend_from_slice(&len.to_be_bytes());
+            }
+            bytes.extend_from_slice(&to_write);
+            bytes
+        }
+
+        fn process_value(value: BISONType) -> Vec<u8>{
+            let mut bytes = Vec::new();
+
             match value{
                 BISONType::Map(value) => {
                     bytes.push(BISON::MAP);
-                    write_vec(&mut bytes, &Vec::try_from(value)?);
+                    bytes.extend_from_slice(&get_vec(&Vec::from(value)));
                 }
                 BISONType::Array(value) => {
                     bytes.push(BISON::ARRAY);
                     let mut array = Vec::new();
                     for single_value in value{
-                        array.extend_from_slice(&process_value(single_value)?);
+                        array.extend_from_slice(&process_value(single_value));
                     }
-                    write_vec(&mut bytes, &array);
+                    bytes.extend_from_slice(&get_vec(&array));
                 }
                 BISONType::String(value) => {
                     bytes.push(BISON::STRING);
-                    write_vec(&mut bytes, value.as_bytes());
+                    bytes.extend_from_slice(&get_vec(value.as_bytes()));
                 }
                 BISONType::Integer(value) => {
                     bytes.push(BISON::INTEGER);
@@ -332,7 +340,7 @@ impl TryFrom<BISON> for Vec<u8>{
                 }
                 BISONType::ByteArray(value) => {
                     bytes.push(BISON::BYTE_ARRAY);
-                    write_vec(&mut bytes, &value);
+                    bytes.extend_from_slice(&get_vec(&value));
                 }
                 BISONType::Boolean(value) => {
                     bytes.push(BISON::BOOLEAN);
@@ -340,17 +348,15 @@ impl TryFrom<BISON> for Vec<u8>{
                 }
                 BISONType::Null => bytes.push(BISON::NULL)
             }
-            Ok(bytes)
+            bytes
         }
 
         let mut bytes = Vec::new();
 
         for (key, value) in value.0{
-            let key_bytes = key.as_bytes();
-            bytes.push(u8::try_from(key_bytes.len())?);
-            bytes.extend_from_slice(key_bytes);
-            bytes.extend_from_slice(&process_value(value)?);
+            bytes.extend_from_slice(&get_vec(key.as_bytes()));
+            bytes.extend_from_slice(&process_value(value));
         }
-        Ok(bytes)
+        bytes
     }
 }
