@@ -5,6 +5,7 @@ mod vec_wrapper;
 
 extern crate alloc;
 
+use alloc::collections::BTreeMap;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt::{Display, Formatter};
@@ -12,7 +13,7 @@ use crate::global_error::{GlobalError, GlobalResult};
 use crate::vec_wrapper::VecWrapper;
 
 #[derive(Clone, PartialEq, PartialOrd, Default, Debug)]
-pub struct BISON(Vec<(String, BISONType)>);
+pub struct BISON(BTreeMap<String, BISONType>);
 
 impl Display for BISON{
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
@@ -163,32 +164,38 @@ impl BISON{
     const ARRAY: u8 = 7;
     const MAP: u8 = 8;
 
-    pub const fn new() -> Self {Self(Vec::new())}
+    pub const fn new() -> Self {Self(BTreeMap::new())}
 
     pub fn keys(&self) -> Vec<String> {
         self.0.iter().map(|x| x.0.clone()).collect()
     }
 
     pub fn get(&self, key: impl Into<String>) -> Option<&BISONType>{
-        let as_string = key.into();
-        self.0.iter().find(|x| x.0 == as_string.clone()).map(|x| &x.1)
+        self.0.get(&key.into())
+    }
+
+    pub fn get_mut(&mut self, key: impl Into<String>) -> Option<&mut BISONType> {
+        self.0.get_mut(&key.into())
+    }
+
+    pub fn entries(&self) -> usize{
+        self.0.len()
     }
 
     pub fn contains_key(&self, key: impl Into<String>) -> bool{
-        let as_string = key.into();
-        self.0.iter().any(|x| x.0 == as_string.clone())
+        self.0.contains_key(&key.into())
     }
 
     pub fn insert(&mut self, key: impl Into<String>, value: impl Into<BISONType>){
-        let as_string = key.into();
-        if !self.contains_key(&as_string){
-            self.0.push((as_string, value.into()));
-        }
+        self.0.insert(key.into(), value.into());
     }
 
     pub fn delete(&mut self, key: impl Into<String>){
-        let as_string = key.into();
-        self.0.retain(|x| x.0 != as_string.clone());
+        self.0.remove(&key.into());
+    }
+
+    pub fn clear(&mut self){
+        self.0.clear();
     }
 
     fn to_string_internal(&self, indent_level: usize) -> String{
