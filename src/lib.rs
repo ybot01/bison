@@ -5,6 +5,7 @@ mod vec_wrapper;
 
 extern crate alloc;
 
+use alloc::collections::btree_map::Keys;
 use alloc::collections::BTreeMap;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
@@ -166,8 +167,8 @@ impl BISON{
 
     pub const fn new() -> Self {Self(BTreeMap::new())}
 
-    pub fn keys(&self) -> Vec<String> {
-        self.0.iter().map(|x| x.0.clone()).collect()
+    pub fn keys(&self) -> Keys<'_, String, BISONType> {
+        self.0.keys()
     }
 
     pub fn get(&self, key: impl Into<String>) -> Option<&BISONType>{
@@ -178,7 +179,7 @@ impl BISON{
         self.0.get_mut(&key.into())
     }
 
-    pub fn entries(&self) -> usize{
+    pub fn len(&self) -> usize{
         self.0.len()
     }
 
